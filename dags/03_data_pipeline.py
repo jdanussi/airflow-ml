@@ -109,6 +109,7 @@ with DAG(
     start_date=datetime(2008, 12, 31),
     end_date=datetime(2019, 1, 1),
     schedule_interval='@yearly',
+    max_active_runs=3,
     default_args=default_args, 
     catchup=True) as dag:
 
