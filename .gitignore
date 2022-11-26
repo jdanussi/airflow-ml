@@ -153,4 +153,5 @@ notebooks/
 airflow_variables/
 varios/
 dags/utils/config_params.py
+config_params.py
 
