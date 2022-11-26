@@ -1,3 +1,0 @@
-# requirements.txt example
-apache-airflow[amazon]==2.2.2
-boto3==1.17.44
