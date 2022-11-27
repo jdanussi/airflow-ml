@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 #from time import sleep
 import sqlalchemy.exc
 
@@ -98,7 +98,8 @@ default_args= {
     'owner': 'Jorge Danussi',
     'email': ['jdanussi@gmail.com'],
     'depends_on_past': False,
-    'retries': 0,
+    'retries': 3,
+    'retry_delay': timedelta(minutes=10),
     'email_on_failure': False,
     'email_on_retry': False
 }
@@ -107,7 +108,7 @@ with DAG(
     dag_id=DAG_ID,
     description='ETL pipeline',
     start_date=datetime(2008, 12, 31),
-    end_date=datetime(2019, 1, 1),
+    end_date=datetime(2018, 1, 1),
     schedule_interval='@yearly',
     max_active_runs=3,
     default_args=default_args, 
