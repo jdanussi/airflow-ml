@@ -1,14 +1,20 @@
 import os
 import pandas as pd
 
-from airflow import AirflowException
+from airflow.models import Variable
+#from airflow import AirflowException
 from airflow.hooks.S3_hook import S3Hook
-import utils.config_params as config
+#import utils.config_params as config
 
-PATH_LOCAL = config.params["PATH_LOCAL"]
-S3_BUCKET = config.params["S3_BUCKET"]
-S3_SILVER = config.params["S3_SILVER"]
-S3_GOLD = config.params["S3_GOLD"]
+#PATH_LOCAL = config.params["PATH_LOCAL"]
+#S3_BUCKET = config.params["S3_BUCKET"]
+#S3_SILVER = config.params["S3_SILVER"]
+#S3_GOLD = config.params["S3_GOLD"]
+
+PATH_LOCAL = Variable.get("local_path")
+S3_BUCKET = Variable.get("data_lake_bucket")
+S3_SILVER = Variable.get("s3_silver_folder")
+S3_GOLD = Variable.get("s3_gold_folder")
 
 
 def upload_to_s3(filename: str, key: str, bucket_name: str) -> None:
@@ -17,7 +23,6 @@ def upload_to_s3(filename: str, key: str, bucket_name: str) -> None:
 
 
 def data_to_silver(**context):
-    
     logical_year=str(context["logical_date"].year)
     file_name_in = f"{logical_year}_01_bronze.csv"
     file_path_in = os.path.join(PATH_LOCAL, file_name_in)

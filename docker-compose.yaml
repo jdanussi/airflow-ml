@@ -89,6 +89,8 @@ services:
   airflow-webserver:
     <<: *airflow-common
     command: webserver
+    env_file:
+      - airflow.env
     ports:
       - 8080:8080
     healthcheck:
