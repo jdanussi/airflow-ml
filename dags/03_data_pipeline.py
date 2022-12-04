@@ -150,7 +150,7 @@ with DAG(
     # task: 6
     create_aggregation_table = PostgresOperator(
         task_id="create_table_agg_dep_delay_by_date",
-        postgres_conn_id='postgres',
+        postgres_conn_id='postgres_conn',
         sql='sql/create_table_agg_dep_delay_by_date.sql'
     )
 
