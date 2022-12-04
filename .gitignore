@@ -138,6 +138,7 @@ dmypy.json
 cython_debug/
 
 # Others
+data/
 sqlite/
 reports/
 varios/
