@@ -146,10 +146,10 @@ plugins/
 *.db
 *.env
 *.zip
-data/
+*.csv
 *.pem
+notebooks/data
 airflow_variables/
-dags/utils/config_params.py
 config_params.py
 nohup.out
 
