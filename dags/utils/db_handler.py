@@ -42,12 +42,10 @@ class DatabaseHandler:
         connection = self._connect()
         with connection:
             #df.to_sql(table, connection, if_exists=if_exists, index=index, **kwargs)
-
-
             df = df.set_index('id')
 
             # dump a slice with changed rows to temporary MySQL table
-            df.to_sql('my_tmp', connection, if_exists='replace', index=True)
+            df.to_sql('tmp_table', connection, if_exists='replace', index=True)
 
             #conn = engine.connect()
             trans = connection.begin()

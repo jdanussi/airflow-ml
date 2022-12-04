@@ -6,10 +6,6 @@ from airflow.models.baseoperator import chain
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
-#from utils.notifications import (
-#    slack_success_notification,
-#    slack_failure_notification,
-#)
 
 DAG_ID = os.path.basename(__file__).replace(".py", "")
 
@@ -24,20 +20,15 @@ default_args= {
 
 with DAG(
     dag_id=DAG_ID,
-    description="Run all DAGs",
-    default_args=default_args,
-    schedule_interval='@yearly',
-    #dagrun_timeout=timedelta(minutes=5),
+    description='ETL pipeline',
     start_date=datetime(2008, 12, 31),
-    catchup=True
-    #schedule_interval=None,
-    #on_failure_callback=slack_failure_notification,
-    #on_success_callback=slack_success_notification
-) as dag:
+    end_date=datetime(2018, 1, 1),
+    schedule_interval='@yearly',
+    max_active_runs=3,
+    default_args=default_args, 
+    catchup=True) as dag:
 
     begin = DummyOperator(task_id="begin")
-
-    end = DummyOperator(task_id="end")
 
     trigger_dag_01 = TriggerDagRunOperator(
         task_id="trigger_dag_01",
@@ -51,6 +42,7 @@ with DAG(
         wait_for_completion=True,
     )
 
+    end = DummyOperator(task_id="end")
 
 chain(
     begin,

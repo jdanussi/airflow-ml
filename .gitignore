@@ -141,17 +141,15 @@ cython_debug/
 sqlite/
 reports/
 varios/
-*.ipynb
 logs/
 plugins/
 *.db
 *.env
 *.zip
-data/
-notebooks/
+*.csv
 *.pem
+notebooks/data
 airflow_variables/
-varios/
-dags/utils/config_params.py
 config_params.py
+nohup.out
 

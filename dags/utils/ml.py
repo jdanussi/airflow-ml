@@ -4,10 +4,15 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
 
-import utils.config_params as config
+from airflow.models import Variable
 
-PATH_LOCAL = config.params["PATH_LOCAL"]
-outliers_fraction = float(config.params["outliers_fraction"])
+#import utils.config_params as config
+
+#PATH_LOCAL = config.params["PATH_LOCAL"]
+#outliers_fraction = float(config.params["outliers_fraction"])
+
+PATH_LOCAL = Variable.get("local_path")
+OUTLIERS_FRACTION = float(Variable.get("outliers_fraction"))
 
 def anomaly(logical_year):
 
@@ -29,11 +34,11 @@ def anomaly(logical_year):
             data = pd.DataFrame(np_scaled)
         
             # train isolation forest
-            model =  IsolationForest(contamination=outliers_fraction)
+            model =  IsolationForest(contamination=OUTLIERS_FRACTION)
             model.fit(data) 
         
             item['anomaly'] = model.predict(data)
-            item['origin']=origin
+            item['origin'] = origin
             
             item.reset_index(inplace=True)
             item = item[['origin', 'fl_date', 'mean_dep_delay', 'anomaly']]
