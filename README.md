@@ -92,6 +92,15 @@ En capa de base de datos:
 - database-ml: RDS de tipo db.t3.micro con base de datos inicial `ml_resuls`. Si la base no se crea inicialmente con la RDS, se puede crear luego.
 
 
+Asignar direcciones públicas elásticas para los siguientes recursos:
+- vpc-airflow-ml-ngw (NAT Gateway de la capa de aplicación)
+- bastion-host 
+- nginx
+- superset-pub
+
+Estas IPs Públicas fijas facilitan la gestión del ambiente de laboratorio que cambia con cada sesión.
+
+
 ## Seguridad
 
 Los grupos de seguridad de cada recurso deben ser seteados con los accesos mínimos requeridos (buena práctica!). 
@@ -119,9 +128,38 @@ Reglas Inbound de los Security Groups:
     - Se permite a Postgres TCP 5432 a bastion-host
     - Se permite a Postgres TCP 5432 a airflow
     - Se permite a Postgres TCP 5432 a superset-pub
+<br>
 
 
-## Flujo ETL
+## Flujo ETL y Machine Learning
 
-Se configuró el DAG de Airflow etl_ml_pipeline con schedule anual  
+El flujo de ETL se realiza desde la instancia EC2 `airflow` que corre Airflow 2.4.2 sobre un contenedor de docker. 
+Como se corre Airflow en forma standalone sobre una instancia y no sobre un cluster, se decidió usar el Local Executor con PostgresSQL como backend porque permite la ejecución simultánea de tareas que aunque no es necesario para este caso, se seteó así para probar.
+En contraste, también puede configurarse un Sequential Executor con SQLite como backend o Celery Executor que permite el escalado de los workers dentro de un cluster.
+
+
+El DAG `etl_ml_pipeline con` se ejecuta anualmente, cada 01/Ene a la 00:00 hs y realiza en secuencia lo siguiente:
+
+1. Se conecta al Data Lake en S3, a la ruta airflow-ml-datalake/01_bronze y baja localmente el archivo .csv que corresponde al año anterior.
+2. Con el archivo ubicado en la EC2 se realiza tareas de cleaning y ajuste de esquema. Ej: se eliminan las filas con datos nulos en la columna DEP_DELAY, se renombran columnas, etc. Una vez finalizada la limpieza y transformación, se realiza un upload del dataset refinado en formato parquet a la ubicación **silver** del Data Lake - `airflow-ml-datalake/02_silver/year` - Los datasets ahi almacedos pueden ser útiles para posteriores análisis de datos.
+3. Con el dataset refinado - que aun sigue almacedado localmente en la instacia donde corre Airflow - se realiza luego una agregación de los datos promediando el tiempo de demora de la partida de los vuelos por Año y por Origen. Se realiza un upload del dataset con información agregada en formato parquet a la ubicación **gold** del Data Lake `airflow-ml-datalake/03_gold/agg_dep_delay_by_date/year`. Los datasets ahi almacedos pueden ser útiles para presentar en dashboards de análisis.
+4. El dataset con información agregada continúa su workflow ingresando a un proceso de Machine Learning para detectar anomalías en el promedio de las demoras. Para la detección de anomaías en series temporales se utilizó el modelo no supervisado Insolation Forest que suele ser efectivo cuando el hiperparámetro de contaminación - porcenje de outliers respecto a los datos totales - es bajo, típicamente un 10% o 0.01. Pueden consultarse los análisis realizados para la elección del modelo en los notebooks ubicados en la carpeta `/notebooks`. 
+5. Las anomalías encontradas por el modelo son señalas dentro del dataset, y los datos con esta información incorporada se almacenan en una RDS Postgres que haría el papel de data warehouse para los análisis.
+6. Finalmente, la última tarea del DAG es eliminar todos los archivos descargados y generdos durante la corrida. 
+
+
+## Dashboard de Analísis
+
+La instancia EC2 superset-pub corre Apache Superset sobre un contenedor de Docker, utilizando Postgres como backend.
+Superset está conectado a la RDS que almacena los datos procesados por el pipeline ML, y sobre el mismo se creo un dashboard que muestra algunos datos sobre las demoras y las nomalías. 
+Se intentó desplegar Apache Superset en la capa de aplicación detrás de Nginx pero no resultó bien porque se generaban errores de timeout en Nginx al tratar de cargar los schemas de la RDS desde el SQL Lab.
+
+
+## Cuestiones para mejorar
+
+- Utilizar más modelos de Machile Learning y compararlos para utilizar en el pipeline el que sea más eficiente para detectar las anomalías.
+- Resolver el problema de Nginx haciendo de proxy a Superset. La aplicación de analítica no tiene porque estar expuesta directamente a internet.
+- Implementar SSL en Nginx, en el webserver de Airflow y en Superset, para evitar transmitir credenciales sin encriptar.
+
+
 
