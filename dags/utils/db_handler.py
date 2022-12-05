@@ -52,7 +52,7 @@ class DatabaseHandler:
 
             try:
                 # delete those rows that we are going to "upsert"
-                connection.execute(f'delete from {table} where id in (select id from my_tmp)')
+                connection.execute(f'delete from {table} where id in (select id from tmp_table)')
                 trans.commit()
 
                 # insert changed rows
