@@ -3,16 +3,12 @@ import pandas as pd
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import IsolationForest
-
 from airflow.models import Variable
 
-#import utils.config_params as config
-
-#PATH_LOCAL = config.params["PATH_LOCAL"]
-#outliers_fraction = float(config.params["outliers_fraction"])
 
 PATH_LOCAL = Variable.get("local_path")
 OUTLIERS_FRACTION = float(Variable.get("outliers_fraction"))
+
 
 def anomaly(logical_year):
 

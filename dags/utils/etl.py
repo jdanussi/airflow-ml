@@ -2,14 +2,7 @@ import os
 import pandas as pd
 
 from airflow.models import Variable
-#from airflow import AirflowException
 from airflow.hooks.S3_hook import S3Hook
-#import utils.config_params as config
-
-#PATH_LOCAL = config.params["PATH_LOCAL"]
-#S3_BUCKET = config.params["S3_BUCKET"]
-#S3_SILVER = config.params["S3_SILVER"]
-#S3_GOLD = config.params["S3_GOLD"]
 
 PATH_LOCAL = Variable.get("local_path")
 S3_BUCKET = Variable.get("data_lake_bucket")
