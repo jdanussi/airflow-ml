@@ -16,21 +16,12 @@ from airflow.hooks.S3_hook import S3Hook
 from utils.etl import data_to_silver, data_to_gold
 from utils.ml import anomaly
 from utils.postgres_cli import PostgresClient
-#import utils.config_params as config
-
-#PATH_LOCAL = config.params["PATH_LOCAL"]
-#S3_BUCKET = config.params["S3_BUCKET"]
-#S3_BRONZE = config.params["S3_BRONZE"]
-
-#sql_db = config.params["sql_db"]
-#sql_table = config.params["sql_table"]
 
 S3_BUCKET = Variable.get("data_lake_bucket")
 S3_BRONZE = Variable.get("s3_bronze_folder")
 PATH_LOCAL = Variable.get("local_path")
 DB_URL = Variable.get("db_url")
 DB_TABLE = Variable.get("db_table")
-
 
 
 def _download_from_s3(key: str, bucket_name: str, local_path: str, **context) -> str:
@@ -60,7 +51,6 @@ def _search_anomaly(**context):
         raise AirflowException(f"There is no data for year {logical_year}")
 
 
-# pylint: disable=no-member
 def _data_to_database(**context) -> None:
     task_instance = context["ti"]
     df = pd.read_json(

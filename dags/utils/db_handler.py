@@ -41,13 +41,11 @@ class DatabaseHandler:
         """Docstring."""
         connection = self._connect()
         with connection:
-            #df.to_sql(table, connection, if_exists=if_exists, index=index, **kwargs)
             df = df.set_index('id')
 
             # dump a slice with changed rows to temporary MySQL table
             df.to_sql('tmp_table', connection, if_exists='replace', index=True)
 
-            #conn = engine.connect()
             trans = connection.begin()
 
             try:
@@ -59,18 +57,8 @@ class DatabaseHandler:
                 df.to_sql(table, connection, if_exists=if_exists, index=True)
             except:
                 trans.rollback()
-                #df.to_sql(table, connection, if_exists=if_exists, index=True)
                 raise
 
-
-    def insert_from_frame2(self, df, table, if_exists="append", index=False, **kwargs):
-        """Docstring."""
-        connection = self._connect()
-        with connection:
-            df.to_sql(table, connection, if_exists=if_exists, index=index, **kwargs)
-
-
-    # pylint:disable=inconsistent-return-statements
     def to_frame(self, *args, **kwargs):
         """Docstring."""
         cursor = self.execute(*args, **kwargs)
