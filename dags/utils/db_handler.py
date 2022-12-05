@@ -48,17 +48,17 @@ class DatabaseHandler:
             df.to_sql('tmp_table', connection, if_exists='replace', index=True)
 
             #conn = engine.connect()
-            #trans = connection.begin()
+            trans = connection.begin()
 
             try:
                 # delete those rows that we are going to "upsert"
                 connection.execute(f'delete from {table} where id in (select id from my_tmp)')
-                #trans.commit()
+                trans.commit()
 
                 # insert changed rows
                 df.to_sql(table, connection, if_exists=if_exists, index=True)
             except:
-                #trans.rollback()
+                trans.rollback()
                 df.to_sql(table, connection, if_exists=if_exists, index=True)
                 #raise
 
