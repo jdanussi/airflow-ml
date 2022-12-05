@@ -37,7 +37,7 @@ class DatabaseHandler:
             connection = self._connect()
         return connection.execute(sql)
 
-    def insert_from_frame(self, df, table, if_exists="append", index=False, **kwargs):
+    def insert_from_frame2(self, df, table, if_exists="append", index=False, **kwargs):
         """Docstring."""
         connection = self._connect()
         with connection:
@@ -61,6 +61,14 @@ class DatabaseHandler:
                 trans.rollback()
                 df.to_sql(table, connection, if_exists=if_exists, index=True)
                 #raise
+
+
+    def insert_from_frame(self, df, table, if_exists="append", index=False, **kwargs):
+        """Docstring."""
+        connection = self._connect()
+        with connection:
+            df.to_sql(table, connection, if_exists=if_exists, index=index, **kwargs)
+
 
     # pylint:disable=inconsistent-return-statements
     def to_frame(self, *args, **kwargs):
