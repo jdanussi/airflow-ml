@@ -1,8 +1,8 @@
-# Data Pipeline con Machine Learning usando Airflow sobre EC2 y RDS Postgres  
+# ETL y Machine Learning pipeline usando Airflow sobre EC2 y RDS Postgres  
 
 ## Resumen
 
-Se desarrolló un data pipeline en Airflow que extrae datos crudos de la ubicación *bronze* del Data Lake implementado en S3, realiza el cleaning y ajustes de esquema almacenando el resultado en la ubicación *silver* y finalmente realiza sobre los mismos algún tipo de agregación almacenando el resultado en el ubicación *gold* del Lake.
+Se desarrolló un data pipeline en Airflow que extrae datos crudos de la ubicación *bronze* del Data Lake implementado en S3, realiza la limpieza y algunos ajustes de esquema almacenando el resultado en la ubicación *silver* y finalmente realiza sobre los mismos algún tipo de agregación almacenando el resultado en el ubicación *gold* del Lake.
 Se utilizó para este desarrollo el dataset de Kaggle de demoras y cancelaciones de vuelos en USA entre 2009 y 2018 [Airline Delay and Cancellation Data, 2009 - 2018]( https://www.kaggle.com/datasets/yuanyuwendymu/airline-delay-and-cancellation-data-2009-2018 )
 
 
@@ -19,16 +19,21 @@ A continuación se describen los recursos creados en AWS para soportar la aplica
 
 ## Data Lake
 
-Se creo el bucket S3 **airflow-ml-datalake** - se utilizar cualquier otro nombre que este disponible. Luego se indica el mismo en las variables que utiliza Airflow - y dentro del mismo las siguientes carpetas:
+Se creo el bucket S3 **airflow-ml-datalake** - se puede utilizar cualquier otro nombre que este disponible. Luego se indica el mismo en las variables que utiliza Airflow -. Dentro del bucket se crearon las siguientes carpetas:
 
 - /01_bronze
 - /02_silver/year
 - /03_gold/agg_dep_delay_by_date/year
 
+Realizamos luego el upload de los datasets de demoras obtenidos de Kaggle en la ubicación *bronze* del data lake quedando como se muestra
+
+![s3_bronze](images/s3_bronze_01.png)  
+<br>
+
 
 ## Network
 
-Se creó una VPC con CIDR 10.0.0.0/16 que incluye 2 zonas de disponibilidad para implementar alta disponibilidad en el futuro. Sobre la VPC se desplegaron los siguientes recursos:
+Se creó una VPC con CIDR 10.0.0.0/16 que incluye 2 zonas de disponibilidad para implementar HA en el futuro. Sobre la VPC se desplegaron los siguientes recursos:
 
 - Internet Gateway
 
@@ -36,11 +41,11 @@ Se creó una VPC con CIDR 10.0.0.0/16 que incluye 2 zonas de disponibilidad para
 **Capa Pública**
 
 2 Subnets públicas:
-- public-subnet-1: 10.0.1.0/24
-- public-subnet-2: 10.0.2.0/24
+- `public-subnet-1`: 10.0.1.0/24
+- `public-subnet-2`: 10.0.2.0/24
 
 Tabla de rutas pública:
-- public-rt
+- `public-rt`
 
 La tabla de rutas se asoció a ambas subnets públicas e incorporan la ruta de salida a internet a travez del Internet Gateway
 
@@ -52,11 +57,11 @@ Se crea también un NAT Gateway que se ubica en cualquier de las subnets públic
 **Capa de Aplicación**
 
 2 Subnets privadas con salida a internet - vía NAT Gataway -:
-- private-subnet-1: 10.0.3.0/24
-- private-subnet-1: 10.0.4.0/24
+- `private-subnet-1`: 10.0.3.0/24
+- `private-subnet-1`: 10.0.4.0/24
 
 Tabla de rutas pública:
-- private-rt
+- `private-rt`
 
 La tabla de rutas `private-rt` se debe asociar a las 2 subnets privadas y debe incorporar una ruta de salida a internet vía NAT Gateway
 
@@ -69,13 +74,15 @@ Se incorpora este recurso para permitir el download de las imágenes docker nece
 
 2 Subnets privadas sin salida a internet:
 
-- private-subnet-3: 10.0.5.0/24
-- private-subnet-4: 10.0.6.0/24
+- `private-subnet-3`: 10.0.5.0/24
+- `private-subnet-4`: 10.0.6.0/24
 
 RDS subnet group:
 - `vpc-airflow-ml-subnets-group` que incluya las 2 subnets anteriores. 
 
 Estas 2 subnets heredan la asignación de la tabla de rutas default de la VPC y no hace falta cambiarla.
+
+![network](images/subnets.png) 
 
 
 ## Compute
@@ -90,7 +97,7 @@ En capa pública:
         $> sudo apt update
         $> sudo apt install nginx
 
-editar el sitio default en `/etc/nginx/sites-enabled` para que quede como sigue:
+    Editar luego el archivo de configuración default en `/etc/nginx/sites-enabled/default` para que quede como sigue:
 
     server {
         listen 80;
@@ -107,9 +114,9 @@ editar el sitio default en `/etc/nginx/sites-enabled` para que quede como sigue:
     }
     }
 
-La ip `10.0.3.75` es en este caso la ip privada que le fué asignada a la instancia de Airflow. Reemplazar este dato con el valor que corresponde.
+    La ip `10.0.3.75` es en este caso la ip privada que le fué asignada a la instancia de Airflow. Reemplazar este dato con el valor que corresponda en cada caso.
 
-Una vez configurado el servidor Nginx, realizar el restart del servicio
+    Una vez configurado el servidor Nginx, realizar el restart del servicio
 
     $> sudo systemctl restart nginx.service
 
@@ -139,25 +146,55 @@ En capa de aplicación:
         # Corremos airflow
         $> docker-compose up -d
 
-Sobre el archivo `docker-compose.yaml` oficial se realizaron los siguientes cambios:
+    Sobre el archivo `docker-compose.yaml` oficial se realizaron los siguientes cambios:
 
-Se agregó la librería `scikit-learn` necesaria para las tareas de Machine Learning
+    - Se removieron los servicios de *Redis*, *Flower* y de *Worker* que no son necesarios cuando Airflow corre localmente.
 
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-scikit-learn apache-airflow[amazon]}
+    - Se agregó la librería `scikit-learn` necesaria para las tareas de Machine Learning
 
-Se agregó el volumen `data` para procesar localmente los datos
+            _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-scikit-learn apache-airflow[amazon]}
 
-    volumes:
-        ...
-        - ./data:/opt/airflow/data
+    - Se indicó que no se carguen los DAGs ejemplo  
 
-y en la sección de `airflow-init`
+            AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
 
-        mkdir -p /sources/logs /sources/dags /sources/plugins /sources/data
-        chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins,data}
+    - Se agregó el volumen `data` para procesar archivos de forma local
+
+            volumes:
+                ...
+                - ./data:/opt/airflow/data
+
+    - y en la sección de `airflow-init`
+
+            mkdir -p /sources/logs /sources/dags /sources/plugins /sources/data
+            chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins,data}
 
 
-- `database-ml`: RDS de tipo *db.t3.micro* con base de datos inicial `ml_resuls`. Si la base no se crea inicialmente con la RDS, se puede crear luego.
+    Una vez levantado Airflow ingresar al web server vía Nginx http://<nginx_EIP> utilizando las credenciales user=airflow / password=airflow y configurar las conexiones a la RDS donde se almacenaran los resultados del proceso ML y al bucket S3.
+
+    ![airflow_conn](images/airflow_00_connections.png)
+
+    ![airflow_postgres_conn](images/airflow_00_connections_postgres.png)
+
+    En el seteo de la conexión a S3 utilizar los datos de `aws_access_key_id`, `aws_secret_access_key` y `aws_session_token` provistos por la sesión del laboratorio.
+
+    ![airflow_s3_conn](images/airflow_00_connections_s3.png)
+
+    A continuacion se muestran los contenedores de los distintos servicios corriendo
+
+     ![airflow_containers](images/airflow_containers.png)
+
+
+- `database-ml`: RDS de tipo *db.t3.micro* con base de datos inicial `ml_resuls`. Si la base no se crea inicialmente con la RDS, se puede crear luego. La RDS se ubica en el grupo de subnets creado anteriormente `vpc-airflow-ml-subnets-group`.
+
+    ![rds_dash](images/rds_console.png)  
+
+    ![rds_subnet_group](images/rds_subnet_groups.png)  
+
+
+    A continuación se muestra captura de todas las instancias corriendo
+
+    ![ec2](images/ec2_dashboard.png) 
 
 
 ## Elastic IP
@@ -170,6 +207,8 @@ Alocar 4 IP públicas elásticas y asignarla a los siguientes recursos:
 - `superset-pub`
 
 Estas EIPs facilitan la gestión del ambiente de laboratorio que cambia con cada sesión.
+
+ ![EIPs](images/eips.png) 
 
 
 ## Seguridad
@@ -196,9 +235,9 @@ Reglas Inbound de los Security Groups:
     - Se permite acceso a puerto 8080 solo desde `nginx`.
 
 - `database-ml-sg`:
-    - Se permite a Postgres a `bastion-host`.
-    - Se permite a Postgres a `airflow`.
-    - Se permite a Postgres a `superset-pub`.
+    - Se permite a Postgres desde `bastion-host`.
+    - Se permite a Postgres desde `airflow`.
+    - Se permite a Postgres desde `superset-pub`.
 <br><br>
 
 
@@ -206,38 +245,41 @@ Reglas Inbound de los Security Groups:
 
 El flujo de ETL se realiza desde la instancia EC2 `airflow` que corre Airflow 2.4.2 sobre un contenedor de Docker. 
 
-Como se corre Airflow sobre una EC2 en forma standalone y no sobre un cluster, se decidió usar el *Local Executor* con *PostgresSQL* como backend porque esta configuración permite la ejecución simultánea de tareas. Aunque para este caso no es necesario la simultaneidad, se seteó así para probar.
+Como se corre Airflow sobre una EC2 en forma standalone y no sobre un cluster, se decidió usar el *Local Executor* con *PostgresSQL* como backend porque esta configuración permite la ejecución simultánea de tareas. Aunque para este caso no es necesaria la simultaneidad, se seteó así para probar.
 En contraste, también puede configurarse un *Sequential Executor* con *SQLite* como backend - no es posible correr tareas simultáneas por limitaciones de SQLite - o *Celery Executor* que permite el escalado de los workers dentro de un cluster.
 
 El DAG `etl_ml_pipeline con` se ejecuta anualmente, cada 01/Ene a la 00:00 hs y realiza en secuencia lo siguiente:
 
-1. Desde la ubicación *bronze* de S3 se descarga el archivo {lastyear}.csv que corresponde al año anterior, se renombra a {lastyear_01_bronze.csv}.
+1. Descarga desde la ubicación *bronze* del data lake el archivo {lastyear}.csv que corresponde al año anterior y lo renombra como {lastyear}_01_bronze.csv. Con {lastlayer} se indica el año de la corrida como variable.
 
-2. Con el archivo ubicado en la EC2 se realiza tareas de cleaning y ajuste de esquema - se eliminan las filas con datos nulos en la columna DEP_DELAY, se renombran columnas, etc -. Una vez finalizada la limpieza y transformación, se realiza un upload del dataset refinado en formato *parquet* a la ubicación **silver** del Data Lake 
+2. Con el archivo ubicado en la EC2 se realizan tareas de cleaning y ajustes de esquema - se eliminan filas con datos nulos, se quitan columnas y renombran otras, etc -. Una vez finalizada la limpieza y transformación, se hace el upload del dataset refinado en formato *parquet* a la ubicación **silver** del data lake 
 
     `/02_silver/year/{lastyear}/{lastyear}_02_silver.parquet`
 
-    Los datasets ahi almacedos pueden ser útiles para posteriores análisis de datos.
+    Los datasets ahi almacenados pueden ser útiles para posteriores análisis de datos.
 
-3. Con el dataset refinado - que aun sigue almacedado localmente en la instacia donde corre Airflow - se realiza una agregación de los datos promediando el tiempo de demora de la partida de los vuelos por Año y por Origen. 
-Se realiza un upload del dataset con información agregada en formato parquet a la ubicación **gold** del Data Lake 
+3. Con el dataset refinado - que aun sigue almacedado localmente en la instacia donde corre Airflow - se realiza una agregación de los datos promediando el tiempo de demora de la partida de los vuelos por *Año* y por *Origen*. 
+Se realiza el upload del dataset con información agregada en formato parquet a la ubicación **gold** del data lake 
 
     `airflow-ml-datalake/03_gold/agg_dep_delay_by_date/year/{lastyear}/{lastyear}_03_gold.parquet`
 
-    Los datasets ahi almacedos pueden ser útiles para presentar en dashboards de análisis.
+    Los datasets ahi almacenados pueden ser útiles para presentar en dashboards de análisis.
 
-4. El dataset con información agregada ingresa en un proceso de Machine Learning para detectar anomalías en el promedio de las demoras. 
-Para la detección de anomalías en series temporales se utilizó el modelo no supervisado *Insolation Forest* que suele ser efectivo cuando el hiperparámetro de *contaminación* - porcenje de outliers respecto a los datos totales - es bajo, típicamente un 10% o 0.01. Pueden consultarse los análisis realizados con el modelo en los notebooks ubicados en la carpeta `/notebooks`. 
+4. El dataset con información agregada ingresa luego en un pipeline de Machine Learning para detectar anomalías en los tiempos promedios de las demoras. 
+Para la detección de anomalías en series temporales se utilizó el modelo no supervisado *Insolation Forest* que suele ser efectivo cuando el hiperparámetro de *contaminación* - porcenje de outliers respecto a los datos totales - es bajo, típicamente de un 10%. Pueden consultarse los análisis realizados con el modelo en los notebooks ubicados en la carpeta `/notebooks`. 
 
-5. Las anomalías encontradas por el modelo son señaladas dentro del dataset, y los datos con esta información adicional se almacenan en una RDS Postgres que sirve como soporte del Data Warehouse.
+5. Las anomalías encontradas por el modelo son señaladas dentro del dataset, y los datos con esta información adicional se almacenan en la RDS Postgres que hace de Data Warehouse.
 
-6. Finalmente, la última tarea del DAG es eliminar todos los archivos descargados y generdos durante la corrida. 
+6. Finalmente, la última tarea del DAG es eliminar todos los archivos descargados y generados durante la corrida. 
 
-![diagrama](images/airflow_02_graph.png)  
-<br>
+    ![airflow_01](images/airflow_01_dag.png)  
+
+    ![airflow_02](images/airflow_02_graph.png)  
+
+    ![airflow_running](images/airflow_running.png)  
 
 
-## UPSERTs de base de datos
+## UPSERTs sobre de base de datos
 
 Se modificó la clase `dags/utils/db_handler.py` que se utilizó en entregas anteriores para que permita el UPSERTs de registros en tablas (INSERT si el registro no existe o UPDATE si existe).
 
@@ -267,20 +309,27 @@ A continuación se muestra la función implementada para UPSERT:
                 trans.rollback()
                 raise
 
+Se muestran algunos datos de la tabla `agg_dep_delay_by_date`
+
+ ![sql_table](images/sql_table_01.png)  
+
 
 ## Dashboard de Analísis
 
 La instancia EC2 `superset-pub` corre Apache Superset sobre un contenedor de Docker, utilizando Postgres como backend.
 
-Superset está conectado a la RDS que almacena los datos procesados por el pipeline ML. Sobre el mismo se creo un dashboard que muestra algunos datos sobre demoras y las anomalías. 
+Superset está conectado a la RDS que almacena los datos procesados por el pipeline ML. Sobre el mismo se creo un dashboard que muestra algunos datos sobre demoras y cantidad de anomalías detectadas. 
 
-Se intentó desplegar Apache Superset en la capa de aplicación detrás de Nginx pero no resultó bien porque se generaban errores de timeout en Nginx al tratar de cargar los schemas de la RDS desde el SQL Lab de Superset. 
+Se intentó desplegar Apache Superset en la capa de aplicación detrás de Nginx pero no fué posible porque se generaban errores de timeout sobre Nginx al tratar de cargar los schemas de la RDS desde el SQL Lab de Superset. 
+
+![superset_timeout](images/superset_timeout.png) 
 
 A continuación se muestran algunas capturas del dasboard:
 
 ![dash01](images/superset_01.png) 
 
 ![dash01](images/superset_02.png) 
+
 
 ## Cuestiones para mejorar
 
