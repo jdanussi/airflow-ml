@@ -12,8 +12,6 @@ Se utilizó para este desarrollo el dataset de Kaggle de demoras y cancelaciones
 <br>
 
 
-## Descripción de infraestructura
-
 A continuación se describen los recursos creados en AWS para soportar la aplicación.
 
 
@@ -24,6 +22,10 @@ Se creo el bucket S3 **airflow-ml-datalake** - se puede utilizar cualquier otro 
 - /01_bronze
 - /02_silver/year
 - /03_gold/agg_dep_delay_by_date/year
+
+
+![s3_data_lake](images/s3_data_lake.png)  
+
 
 Realizamos luego el upload de los datasets de demoras obtenidos de Kaggle en la ubicación *bronze* del data lake quedando como se muestra
 
@@ -118,7 +120,7 @@ En capa pública:
 
     Una vez configurado el servidor Nginx, realizar el restart del servicio
 
-    $> sudo systemctl restart nginx.service
+        $> sudo systemctl restart nginx.service
 
 - `superset-pub`: Instancia tipo *t3.large* que se utiliza para servir los dashboards de análisis.
 Para el deploy de esta aplicación se instaló [Docker](https://docs.docker.com/engine/install/ubuntu/) sobre la instancia y desde `/home/ubuntu` se corrieron los comandos que siguen:
@@ -283,7 +285,7 @@ Para la detección de anomalías en series temporales se utilizó el modelo no s
 
 Se modificó la clase `dags/utils/db_handler.py` que se utilizó en entregas anteriores para que permita el UPSERTs de registros en tablas (INSERT si el registro no existe o UPDATE si existe).
 
-Para poder utilizar este método es importante tener control de la Primary Key de la tabla con la que se trabaja. En nuestro caso fué posible utilizando como PK un *id* generado a partir de la concatenación del código de aeropuerto - `origin` - y de la fecha de partida - `fl_date` - . Ej:  Aeropuerto JFK con fecha de partida 2009-01-01 -> id = JFK20090101.
+Para poder utilizar este método es importante tener control de la Primary Key de la tabla con la que se trabaja. En nuestro caso fué posible utilizando como PK un *id* generado a partir de la concatenación del código de aeropuerto - `origin` - y de la fecha de partida - `fl_date` - . Ej:  Aeropuerto JFK con fecha de partida 2009-01-01 -> id = **JFK20090101**.
 
 A continuación se muestra la función implementada para UPSERT:
 
@@ -331,9 +333,19 @@ A continuación se muestran algunas capturas del dasboard:
 ![dash01](images/superset_02.png) 
 
 
+Y también se muestra como fueron pobladas las carpetas *silver* y *gold* del data lake con los datasets procesados para el año 2009
+
+![s3_silver_2009](images/s3_silver_2009.png) 
+
+![s3_gold_2009](images/s3_gold_2009.png) 
+
+<br>
+
 ## Cuestiones para mejorar
 
-- Utilizar más modelos de Machile Learning y compararlos para utilizar en el pipeline el que sea más eficiente para detectar las anomalías.
+- Utilizar otros modelos de Machine Learning y realizar comparación para utilizar en el pipeline el que sea más eficiente para detectar las anomalías.
 - Implementar SSL en Nginx, en el webserver de Airflow y en Superset, para evitar transmitir credenciales sin encriptar.
-- Resolver el problema de Nginx haciendo de proxy a Superset. La aplicación de analítica no tiene porque estar expuesta directamente a internet.
-- 
+- Resolver el problema de timeout en Nginx cuando hace de proxy a Superset. La aplicación de analítica no tiene porque estar expuesta directamente a internet.
+- Conectar la instancia EC2 de Airflow con S3 utilizando Instance Profiles o algún otro método para evitar tener que estar cargando las credenciales de sesión de laboratorio cada vez que cambian.
+- Utilizar Apache Spark para el ETL, evitando descargar y procesar los datasets de forma local en Airflow. Utilizar un Operator adecuado para asignar la tarea a otro servicio AWS - EMR? GLUE? -
+
