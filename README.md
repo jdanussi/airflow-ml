@@ -109,12 +109,11 @@ En capa pública:
         location / {
                 proxy_pass http://10.0.3.75:8080;
                 proxy_set_header Host $http_host;
-                #proxy_redirect off;
                 proxy_http_version 1.1;
                 proxy_set_header Upgrade $http_upgrade;
                 proxy_set_header Connection "upgrade";
-    }
-    }
+                }
+        }
 
     La ip `10.0.3.75` es en este caso la ip privada que le fué asignada a la instancia de Airflow. Reemplazar este dato con el valor que corresponda en cada caso.
 
