@@ -1,4 +1,7 @@
 """DatabaseHandler class."""
+# pylint: disable=invalid-name
+# pylint: disable=import-error
+
 import pandas as pd
 from sqlalchemy import create_engine
 
@@ -37,20 +40,22 @@ class DatabaseHandler:
             connection = self._connect()
         return connection.execute(sql)
 
-    def insert_from_frame(self, df, table, if_exists="append", index=False, **kwargs):
+    def insert_from_frame(self, df, table, if_exists="append"):
         """Docstring."""
         connection = self._connect()
         with connection:
-            df = df.set_index('id')
+            df = df.set_index("id")
 
             # dump a slice with changed rows to temporary MySQL table
-            df.to_sql('tmp_table', connection, if_exists='replace', index=True)
+            df.to_sql("tmp_table", connection, if_exists="replace", index=True)
 
             trans = connection.begin()
 
             try:
                 # delete those rows that we are going to "upsert"
-                connection.execute(f'delete from {table} where id in (select id from tmp_table)')
+                connection.execute(
+                    f"delete from {table} where id in (select id from tmp_table)"
+                )
                 trans.commit()
 
                 # insert changed rows
@@ -63,7 +68,7 @@ class DatabaseHandler:
         """Docstring."""
         cursor = self.execute(*args, **kwargs)
         if not cursor:
-            return
+            return None
         data = cursor.fetchall()
         if data:
             df = pd.DataFrame(data, columns=self._cursor_columns(cursor))

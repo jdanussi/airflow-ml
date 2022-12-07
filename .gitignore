@@ -152,5 +152,5 @@ plugins/
 notebooks/data
 airflow_variables/
 config_params.py
-nohup.out
+pem/
 
