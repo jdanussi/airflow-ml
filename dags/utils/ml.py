@@ -16,6 +16,8 @@ from statsmodels.tsa.arima.model import ARIMA
 import statsmodels.tsa.api as tsa
 from statsmodels.tools.sm_exceptions import ConvergenceWarning
 
+from joblib import Parallel, delayed
+
 warnings.simplefilter("ignore", ConvergenceWarning)
 
 
@@ -78,7 +80,7 @@ def get_order_sets(n, n_per_set) -> list:
     return order_sets
 
 
-def find_aic_for_model(data, p, q, model, n=0):
+def find_aic_for_model(data, p, n, q, model):
     """Finc model AIC."""
     try:
         if p == 0 and q == 1:
@@ -108,7 +110,11 @@ def find_best_order_for_model(data, model):
     for p in range(0, p_ar):
         for order_set in order_sets:
             # fit the model and find the aic
-            results = (find_aic_for_model(data, p, q, model, 0) for q in order_set)
+            # results = (find_aic_for_model(data, p, q, model, 0) for q in order_set)
+            results = Parallel(n_jobs=len(order_set), prefer="threads")(
+                delayed(find_aic_for_model)(data, p, 0, q, model) for q in order_set
+            )
+
             final_results.extend(results)
     results_df = pd.DataFrame(final_results, columns=["aic", "order"])
     min_df = results_df[results_df["aic"] == results_df["aic"].min()]
@@ -175,6 +181,10 @@ def anomaly_arima(df):
         df = pd.concat(dfs, axis=0)
         df = df.reset_index()
         df["fl_date"] = df["fl_date"].dt.strftime("%Y-%m-%d")
+
+        # replace NaN values in anomaly_if column with 0
+        df["anomaly_if"] = df["anomaly_if"].fillna(0)
+
         return df
     except Exception as e:  # pylint: disable=broad-except
         print(f"Exception occurred: {e}")
