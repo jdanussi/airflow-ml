@@ -53,6 +53,7 @@ def _rename_file(ti, **context) -> None:
 def _search_anomaly(**context):
     logical_year = str(context["logical_date"].year)
     df = anomaly(logical_year)
+
     try:
         return df.to_json()
     except Exception as exc:
@@ -109,7 +110,7 @@ with DAG(
     start_date=datetime(2008, 12, 31),
     end_date=datetime(2018, 1, 1),
     schedule_interval="@yearly",
-    max_active_runs=3,
+    max_active_runs=1,
     default_args=default_args,
     catchup=True,
 ) as dag:
