@@ -150,7 +150,6 @@ plugins/
 *.csv
 *.pem
 notebooks/data
-airflow_variables/
 config_params.py
 pem/
 

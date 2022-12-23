@@ -1,0 +1,13 @@
+{
+    "data_lake_bucket": "airflow-ml-datalake",
+    "s3_bronze_folder": "01_bronze",
+    "s3_silver_folder": "02_silver/year",
+    "s3_gold_folder": "03_gold/agg_dep_delay_by_date/year",
+    "local_path": "/opt/airflow/data",
+    "fail_email": "jdanussi@gmail.com",
+    "db_url": "postgres:password@database-ml.c81a4kvoa0wg.us-east-1.rds.amazonaws.com/ml_results",
+    "db_table": "agg_dep_delay_by_date",
+    "outliers_fraction": 0.01,
+    "max_p": 5,
+    "max_q": 5
+}
