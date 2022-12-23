@@ -2,11 +2,11 @@
 
 ## Resumen
 
-Se desarrolló un data pipeline en Airflow que extrae datos crudos de la zona *bronze* del Data Lake implementado en S3, realiza la limpieza y ajustes de esquema almacenando el resultado en la zona *silver* y finalmente realiza sobre los mismos algún tipo de agregación almacenando el resultado en el zona *gold* del Data Lake.
+Se desarrolló un data pipeline en Airflow que extrae datos crudos de la zona *bronze* del Data Lake implementado en S3, realiza la limpieza y ajustes de esquema almacenando el resultado en la zona *silver* y finalmente se hace una agregación de los datos que se guarda en la zona *gold* del Data Lake.
 
 Se utilizó para este desarrollo el dataset de Kaggle de demoras y cancelaciones de vuelos en USA entre 2009 y 2018 [Airline Delay and Cancellation Data, 2009 - 2018]( https://www.kaggle.com/datasets/yuanyuwendymu/airline-delay-and-cancellation-data-2009-2018 )
 
-Sobre los datos agregados de la zona *gold* se corre un proceso de detección de anomalías para hallar en este caso, por fecha y aeropuerto, demoras promedio en la partida de los vuelos por fuera de lo normal. Para la detección se utlizaron los modelos Insolation Forest y ARIMA, siendo este último mucho más eficiente.
+Sobre los datos agregados se corre un proceso de detección de anomalías para hallar, por fecha y aeropuerto, las demoras promedio en la partida de los vuelos por fuera de lo normal. Se utlizaron los modelos *Insolation Forest* y *ARIMA*, siendo este último mucho más eficiente.
 
 
 ## Diagrama de infraestructura
@@ -154,11 +154,11 @@ En capa de aplicación:
 
     - Se removieron los servicios de *Redis*, *Flower* y de *Worker* que no son necesarios cuando Airflow corre localmente.
 
-    - Se agregó la librería `scikit-learn` necesaria para las tareas de Machine Learning
+    - Se agregó la librería `scikit-learn` y `statsmodels`necesaria para las tareas de Machine Learning
 
-            _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-scikit-learn apache-airflow[amazon]}
+            _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-scikit-learn statsmodels apache-airflow[amazon]}
 
-    - Se indicó que no se carguen los DAGs ejemplo
+    - Se indicó que no se carguen los DAGs de ejemplo
 
             AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
 
@@ -174,7 +174,7 @@ En capa de aplicación:
             chown -R "${AIRFLOW_UID}:0" /sources/{logs,dags,plugins,data}
 
 
-    Una vez levantado Airflow ingresar al web server vía Nginx http://<nginx_EIP> utilizando las credenciales user=airflow / password=airflow y configurar las conexiones a la RDS donde se almacenaran los resultados del proceso ML y al bucket S3.
+    Una vez levantado Airflow ingresar al web server vía Nginx http://<nginx_EIP> utilizando las credenciales user=airflow / password=airflow y configurar las conexiones al bucket S3 y a la RDS donde se almacenaran los resultados del proceso ML.
 
     ![airflow_conn](images/airflow_00_connections.png)
 
@@ -183,6 +183,24 @@ En capa de aplicación:
     En el seteo de la conexión a S3 utilizar los datos de `aws_access_key_id`, `aws_secret_access_key` y `aws_session_token` provistos por la sesión del laboratorio.
 
     ![airflow_s3_conn](images/airflow_00_connections_s3.png)
+
+    Además se importaron los key-values del archivo `airflow_variables/variables.json` en `Admin/Variables`:
+
+        {
+        "data_lake_bucket": "airflow-ml-datalake",
+        "s3_bronze_folder": "01_bronze",
+        "s3_silver_folder": "02_silver/year",
+        "s3_gold_folder": "03_gold/agg_dep_delay_by_date/year",
+        "local_path": "/opt/airflow/data",
+        "fail_email": "jdanussi@gmail.com",
+        "db_url": "postgres:password@database-ml.c81a4kvoa0wg.us-east-1.rds.amazonaws.com/ml_results",
+        "db_table": "agg_dep_delay_by_date",
+        "outliers_fraction": 0.01,
+        "max_p": 5,
+        "max_q": 5
+        }
+
+    ![airflow_variables](images/airflow_00_variables.png)
 
     A continuacion se muestran los contenedores de los distintos servicios corriendo
 
@@ -254,25 +272,27 @@ En contraste, también puede configurarse un *Sequential Executor* con *SQLite* 
 
 El DAG `etl_ml_pipeline con` se ejecuta anualmente, cada 01/Ene a la 00:00 hs y realiza en secuencia lo siguiente:
 
-1. Descarga desde la ubicación *bronze* del data lake el archivo {lastyear}.csv que corresponde al año anterior y lo renombra como {lastyear}_01_bronze.csv. Con {lastlayer} se indica el año de la corrida como variable.
+1. Descarga desde la zona **bronze** del data lake el archivo {lastyear}.csv que corresponde al año anterior y lo renombra como {lastyear}_01_bronze.csv. Con {lastlayer} se indica el año de la corrida como variable.
 
-2. Con el archivo ubicado en la EC2 se realizan tareas de cleaning y ajustes de esquema - se eliminan filas con datos nulos, se quitan columnas y renombran otras, etc -. Una vez finalizada la limpieza y transformación, se hace el upload del dataset refinado en formato *parquet* a la ubicación **silver** del data lake
+2. Con el archivo ubicado en la EC2 se realizan tareas de cleaning y ajustes de esquema - se eliminan filas con datos nulos, se quitan columnas y renombran otras, etc -. Una vez finalizada la limpieza y transformación, se hace el upload del dataset refinado en formato *parquet* a la zona **silver** del data lake
 
     `/02_silver/year/{lastyear}/{lastyear}_02_silver.parquet`
 
     Los datasets ahi almacenados pueden ser útiles para posteriores análisis de datos.
 
-3. Con el dataset refinado - que aun sigue almacedado localmente en la instacia donde corre Airflow - se realiza una agregación de los datos promediando el tiempo de demora de la partida de los vuelos por *Año* y por *Origen*.
-Se realiza el upload del dataset con información agregada en formato parquet a la ubicación **gold** del data lake
+3. Con el dataset refinado - que aun sigue almacenado localmente en la instacia donde corre Airflow - se realiza una agregación de los datos promediando el tiempo de demora de la partida de los vuelos por *Año* y por *Origen*.
+Se realiza el upload del resultado en formato parquet a la zona **gold** del data lake
 
     `airflow-ml-datalake/03_gold/agg_dep_delay_by_date/year/{lastyear}/{lastyear}_03_gold.parquet`
 
     Los datasets ahi almacenados pueden ser útiles para presentar en dashboards de análisis.
 
 4. El dataset con información agregada ingresa luego en un pipeline de Machine Learning para detectar anomalías en los tiempos promedios de las demoras.
-Para la detección de anomalías en series temporales se utilizó el modelo no supervisado *Insolation Forest* que suele ser efectivo cuando el hiperparámetro de *contaminación* - porcenje de outliers respecto a los datos totales - es bajo, típicamente de un 10%. Pueden consultarse los análisis realizados con el modelo en los notebooks ubicados en la carpeta `/notebooks`.
+Para la detección de anomalías en series temporales se utilizaron dos modelos, a saber:
+- *Insolation Forest*: modelo no supervisado que suele ser efectivo cuando el hiperparámetro de *contaminación* - porcenje de outliers respecto a los datos totales - es bajo, típicamente de un 10%. Pueden consultarse los análisis realizados con el modelo en los notebooks ubicados en la carpeta `/notebooks`.
+- *ARIMA* (Autoregressive Integrated Moving Average)
 
-5. Las anomalías encontradas por el modelo son señaladas dentro del dataset, y los datos con esta información adicional se almacenan en la RDS Postgres que hace de Data Warehouse.
+5. Las anomalías encontradas por los modelos son señaladas dentro del dataset, y los datos con esta información adicional se almacenan en la RDS Postgres que hace de Data Warehouse.
 
 6. Finalmente, la última tarea del DAG es eliminar todos los archivos descargados y generados durante la corrida.
 
